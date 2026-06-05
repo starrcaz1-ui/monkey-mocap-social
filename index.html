@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Monkey Mocap Social</title>
+
+<style>
+body {
+    margin: 0;
+    font-family: Arial;
+    background: #0e0e0e;
+    color: white;
+}
+
+/* HEADER */
+header {
+    background: #1b1b1b;
+    padding: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+button {
+    padding: 8px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.primary { background: #4caf50; color: white; }
+.dark { background: #333; color: white; }
+
+/* SCREENS */
+.screen {
+    display: none;
+    padding: 15px;
+}
+
+.active {
+    display: block;
+}
+
+/* LOGIN */
+.login-box {
+    max-width: 300px;
+    margin: auto;
+    background: #1b1b1b;
+    padding: 15px;
+    border-radius: 10px;
+}
+
+input {
+    width: 90%;
+    padding: 8px;
+    margin: 5px 0;
+    border-radius: 6px;
+    border: none;
+}
+
+/* POSTS */
+.post {
+    background: #1b1b1b;
+    padding: 10px;
+    margin-bottom: 15px;
+    border-radius: 10px;
+}
+
+.small { font-size: 12px; color: gray; }
+
+.actions button {
+    margin-right: 5px;
+    background: #333;
+    color: white;
+}
+
+.actions button:hover {
+    background: #555;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+    <div>🐒 Monkey Mocap Social</div>
+    <div id="userArea"></div>
+</header>
+
+<!-- LOGIN SCREEN -->
+<div id="loginScreen" class="screen active">
+    <div class="login-box">
+        <h3>Login / Sign Up</h3>
+        <input id="user" placeholder="username">
+        <input id="pass" placeholder="password" type="password">
+        <button class="primary" onclick="signup()">Sign Up</button>
+        <button class="dark" onclick="login()">Log In</button>
+    </div>
+</div>
+
+<!-- DISCOVER SCREEN -->
+<div id="discoverScreen" class="screen">
+    <h2>🔎 Discover</h2>
+    <button class="primary" onclick="openUpload()">+ Upload Mocap</button>
+    <div id="feed"></div>
+</div>
+
+<!-- UPLOAD SCREEN -->
+<div id="uploadScreen" class="screen">
+    <h2>📤 Upload</h2>
+    <input id="title" placeholder="title">
+    <input id="tags" placeholder="tags">
+    <input type="file" id="file">
+    <button class="primary" onclick="createPost()">Post</button>
+    <button class="dark" onclick="goDiscover()">Back</button>
+</div>
+
+<script>
+
+let users = JSON.parse(localStorage.getItem("users") || "{}");
+let posts = JSON.parse(localStorage.getItem("posts") || "[]");
+let currentUser = localStorage.getItem("currentUser");
+
+// ---------- AUTH ----------
+function signup() {
+    const u = user.value;
+    const p = pass.value;
+
+    if (!u || !p) return alert("missing");
+
+    if (users[u]) return alert("user exists");
+
+    users[u] = { password: p };
+    localStorage.setItem("users", JSON.stringify(users));
+
+    alert("signed up! now log in");
+}
+
+function login() {
+    const u = user.value;
+    const p = pass.value;
+
+    if (!users[u] || users[u].password !== p) {
+        return alert("wrong login");
+    }
+
+    currentUser = u;
+    localStorage.setItem("currentUser", u);
+
+    showApp();
+}
+
+// ---------- NAV ----------
+function showApp() {
+    document.getElementById("loginScreen").classList.remove("active");
+    document.getElementById("discoverScreen").classList.add("active");
+
+    document.getElementById("userArea").innerHTML = `
+        👤 ${currentUser}
+        <button onclick="logout()">Logout</button>
+    `;
+
+    render();
+}
+
+function logout() {
+    localStorage.removeItem("currentUser");
+    location.reload();
+}
+
+// ---------- UPLOAD ----------
+function openUpload() {
+    if (!currentUser) return alert("login first");
+    document.getElementById("discoverScreen").classList.remove("active");
+    document.getElementById("uploadScreen").classList.add("active");
+}
+
+function goDiscover() {
+    document.getElementById("uploadScreen").classList.remove("active");
+    document.getElementById("discoverScreen").classList.add("active");
+}
+
+function createPost() {
+    const file = document.getElementById("file").files[0];
+    const title = document.getElementById("title").value;
+    const tags = document.getElementById("tags").value;
+
+    if (!file || !title) return alert("missing");
+
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+        const post = {
+            id: Date.now(),
+            user: currentUser,
+            title,
+            tags,
+            fileName: file.name,
+            content: e.target.result,
+            likes: 0,
+            comments: []
+        };
+
+        posts.unshift(post);
+        localStorage.setItem("posts", JSON.stringify(posts));
+
+        goDiscover();
+        render();
+    };
+
+    reader.readAsText(file);
+}
+
+// ---------- FEED ----------
+function like(id) {
+    const p = posts.find(x => x.id === id);
+    p.likes++;
+    localStorage.setItem("posts", JSON.stringify(posts));
+    render();
+}
+
+function comment(id) {
+    const text = prompt("comment:");
+    if (!text) return;
+
+    const p = posts.find(x => x.id === id);
+    p.comments.push(text);
+
+    localStorage.setItem("posts", JSON.stringify(posts));
+    render();
+}
+
+function download(post) {
+    const blob = new Blob([post.content], {type: "text/plain"});
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = post.fileName;
+    a.click();
+}
+
+function render() {
+    const feed = document.getElementById("feed");
+    feed.innerHTML = "";
+
+    posts.forEach(p => {
+        const div = document.createElement("div");
+        div.className = "post";
+
+        div.innerHTML = `
+            <b>@${p.user}</b>
+            <h3>${p.title}</h3>
+            <div class="small">${p.tags}</div>
+
+            <p>❤️ ${p.likes} | 💬 ${p.comments.length}</p>
+
+            <div class="actions">
+                <button onclick="like(${p.id})">Like</button>
+                <button onclick="comment(${p.id})">Comment</button>
+                <button onclick="download(posts.find(x=>x.id==${p.id}))">Download</button>
+            </div>
+
+            <div class="small">
+                ${p.comments.map(c => "💬 " + c).join("<br>")}
+            </div>
+        `;
+
+        feed.appendChild(div);
+    });
+}
+
+// ---------- INIT ----------
+if (currentUser) {
+    showApp();
+}
+
+</script>
+
+</body>
+</html>
